@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>YouTube Downloader</title>
+<style>
+  :root {
+    --bg: #f6f6f4; --card: #ffffff; --text: #1d1d1f; --muted: #6e6e73;
+    --border: #e2e2e0; --accent: #e5322d; --accent-text: #fff; --ok: #1f8a4c; --err: #c62828;
+    --track: #ececea;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #151516; --card: #1f1f21; --text: #f2f2f2; --muted: #9a9aa0;
+      --border: #333336; --accent: #ff4d47; --ok: #4cc07c; --err: #ff6b6b; --track: #2c2c2f;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  main { max-width: 680px; margin: 0 auto; padding: 48px 16px; }
+  h1 { font-size: 26px; margin: 0 0 4px; letter-spacing: -0.02em; }
+  .sub { color: var(--muted); margin: 0 0 28px; }
+  .card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 14px; padding: 18px; margin-bottom: 16px;
+  }
+  .row { display: flex; gap: 10px; }
+  input[type=text], select {
+    flex: 1; min-width: 0; padding: 12px 14px; font: inherit; color: var(--text);
+    background: var(--bg); border: 1px solid var(--border); border-radius: 10px; outline: none;
+  }
+  input[type=text]:focus, select:focus { border-color: var(--accent); }
+  button {
+    padding: 12px 18px; font: inherit; font-weight: 600; border: 0; border-radius: 10px;
+    background: var(--accent); color: var(--accent-text); cursor: pointer; white-space: nowrap;
+  }
+  button.ghost { background: transparent; color: var(--text); border: 1px solid var(--border); font-weight: 500; }
+  button.wide { width: 100%; margin-top: 10px; }
+  button:disabled { opacity: .5; cursor: default; }
+  .preview { display: none; gap: 14px; margin-top: 16px; }
+  .preview img { width: 160px; aspect-ratio: 16/9; object-fit: cover; border-radius: 8px; background: var(--track); }
+  .preview .meta { flex: 1; min-width: 0; }
+  .preview .title { font-weight: 600; margin-bottom: 2px; }
+  .preview .by { color: var(--muted); font-size: 13px; margin-bottom: 12px; }
+  label.check { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); margin-top: 10px; }
+  .error { color: var(--err); font-size: 14px; margin-top: 10px; display: none; }
+  .jobs-head { display: flex; justify-content: space-between; align-items: center; margin: 28px 0 10px; }
+  .jobs-head h2 { font-size: 15px; margin: 0; }
+  .job .name { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .job .status { color: var(--muted); font-size: 13px; display: flex; justify-content: space-between; gap: 8px; margin-top: 6px; }
+  .job .status a { color: var(--accent); cursor: pointer; text-decoration: none; }
+  .bar { height: 6px; background: var(--track); border-radius: 3px; overflow: hidden; margin-top: 8px; }
+  .bar > div { height: 100%; background: var(--accent); width: 0; transition: width .3s; }
+  .job.done .bar > div { background: var(--ok); }
+  .job.error .bar > div { background: var(--err); width: 100% !important; }
+  .job.error .status span:first-child { color: var(--err); }
+  .empty { color: var(--muted); font-size: 14px; text-align: center; padding: 20px; }
+  @media (max-width: 520px) {
+    .row { flex-direction: column; }
+    .preview { flex-direction: column; }
+    .preview img { width: 100%; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <h1>YouTube Downloader</h1>
+  <p class="sub">Paste a link, choose a format, download. Files go to <code>{{ folder }}</code>.</p>
+
+  <div class="card">
+    <form class="row" id="lookup">
+      <input type="text" id="url" placeholder="https://www.youtube.com/watch?v=..." autofocus>
+      <button type="submit" id="lookupBtn">Look up</button>
+    </form>
+    <div class="error" id="error"></div>
+
+    <div class="preview" id="preview">
+      <img id="thumb" alt="">
+      <div class="meta">
+        <div class="title" id="title"></div>
+        <div class="by" id="by"></div>
+        <div class="row">
+          <select id="preset">
+            {% for key, label in presets %}<option value="{{ key }}">{{ label }}</option>{% endfor %}
+          </select>
+          <button id="dlBtn">Download video</button>
+        </div>
+        <button class="ghost wide" id="mp3Btn">Download MP3 (audio only)</button>
+        <label class="check" id="plWrap" style="display:none">
+          <input type="checkbox" id="playlist" checked> Download the whole playlist
+        </label>
+      </div>
+    </div>
+  </div>
+
+  <div class="jobs-head">
+    <h2>Downloads</h2>
+    <button class="ghost" id="openFolder">Open folder</button>
+  </div>
+  <div id="jobs"><div class="empty">Nothing downloaded yet.</div></div>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+let current = null;
+
+async function api(path, body) {
+  const res = await fetch(path, {
+    method: body ? "POST" : "GET",
+    headers: {"Content-Type": "application/json"},
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Something went wrong");
+  return data;
+}
+
+function showError(msg) {
+  $("error").textContent = msg;
+  $("error").style.display = msg ? "block" : "none";
+}
+
+$("lookup").addEventListener("submit", async e => {
+  e.preventDefault();
+  const url = $("url").value.trim();
+  if (!url) return;
+  showError("");
+  $("preview").style.display = "none";
+  $("lookupBtn").disabled = true;
+  $("lookupBtn").textContent = "Looking up…";
+  try {
+    const info = await api("/api/info", {url});
+    current = {url, ...info};
+    $("thumb").src = info.thumbnail || "";
+    $("title").textContent = info.title || url;
+    const bits = [info.uploader, info.duration, info.playlist ? `${info.count} videos` : null].filter(Boolean);
+    $("by").textContent = bits.join(" · ");
+    $("plWrap").style.display = info.playlist ? "flex" : "none";
+    $("preview").style.display = "flex";
+  } catch (err) {
+    showError(err.message);
+  } finally {
+    $("lookupBtn").disabled = false;
+    $("lookupBtn").textContent = "Look up";
+  }
+});
+
+async function startDownload(preset) {
+  if (!current) return;
+  try {
+    await api("/api/download", {
+      url: current.url, title: current.title,
+      preset,
+      playlist: current.playlist && $("playlist").checked,
+    });
+    $("url").value = "";
+    $("preview").style.display = "none";
+    current = null;
+    $("url").focus();
+    poll();
+  } catch (err) {
+    showError(err.message);
+  }
+}
+
+$("dlBtn").addEventListener("click", () => startDownload($("preset").value));
+$("mp3Btn").addEventListener("click", () => startDownload("mp3"));
+
+$("openFolder").addEventListener("click", () => api("/api/reveal", {}));
+
+function statusText(j) {
+  const item = j.items ? ` (${j.item}/${j.items})` : "";
+  switch (j.state) {
+    case "starting": return "Starting…";
+    case "downloading": return `Downloading${item}` + (j.percent != null ? ` — ${j.percent}%` : "") + (j.speed ? ` · ${j.speed}` : "") + (j.eta ? ` · ${j.eta} left` : "");
+    case "processing": return `Processing${item}…`;
+    case "done": return "Done";
+    case "error": return "Error: " + j.error;
+  }
+}
+
+function render(jobs) {
+  const ids = Object.keys(jobs).reverse();
+  if (!ids.length) return;
+  $("jobs").innerHTML = "";
+  for (const id of ids) {
+    const j = jobs[id];
+    const el = document.createElement("div");
+    el.className = `card job ${j.state}`;
+    el.innerHTML = `<div class="name"></div><div class="bar"><div></div></div><div class="status"><span></span></div>`;
+    el.querySelector(".name").textContent = j.title;
+    el.querySelector(".bar > div").style.width = (j.percent || 0) + "%";
+    el.querySelector(".status span").textContent = statusText(j);
+    if (j.state === "done") {
+      const a = document.createElement("a");
+      a.textContent = "Show in folder";
+      a.onclick = () => api("/api/reveal", {file: j.file});
+      el.querySelector(".status").appendChild(a);
+    }
+    $("jobs").appendChild(el);
+  }
+}
+
+let timer = null;
+async function poll() {
+  clearTimeout(timer);
+  const jobs = await api("/api/jobs");
+  render(jobs);
+  const active = Object.values(jobs).some(j => !["done", "error"].includes(j.state));
+  if (active) timer = setTimeout(poll, 700);
+}
+poll();
+</script>
+</body>
+</html>
