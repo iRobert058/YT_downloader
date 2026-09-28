@@ -13,7 +13,7 @@
 </p>
 
 > [!NOTE]
-> **This project is vibecoded.** It was built by prompting an AI coding assistant, not written by hand.
+> **This project is vibecoded.** It was built by prompting an AI coding assistant, and so is not entirely handcoded.
 > It works for me, but it hasn't been reviewed or tested thoroughly, so use it at your own risk.
 
 ## Features
@@ -32,6 +32,25 @@
 - Python 3.10 or newer
 
 ## Install
+
+### Download the release
+
+Download the zip from the [latest release](https://github.com/iRobert058/YT_downloader/releases/latest),
+unzip it, and move `YT Downloader.app` to `/Applications`.
+
+- **Apple Silicon only.** The prebuilt app runs on M-series Macs, not Intel Macs.
+  On an Intel Mac, build it yourself (see below).
+- **macOS will block it the first time.** The app isn't signed with an Apple Developer ID or notarized,
+  so macOS may say it "is damaged" or "can't be opened". To allow it, run:
+
+  ```bash
+  xattr -dr com.apple.quarantine "/Applications/YT Downloader.app"
+  ```
+
+  Or right-click the app, choose **Open**, then allow it under
+  **System Settings → Privacy & Security**.
+
+### Build from source
 
 ```bash
 git clone https://github.com/iRobert058/YT_downloader.git
