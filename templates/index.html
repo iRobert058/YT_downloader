@@ -5,15 +5,18 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>YouTube Downloader</title>
 <style>
+  /* Colours follow the app icon: a blue-to-violet play button on a neutral charcoal tile. */
   :root {
-    --bg: #f6f6f4; --card: #ffffff; --text: #1d1d1f; --muted: #6e6e73;
-    --border: #e2e2e0; --accent: #e5322d; --accent-text: #fff; --ok: #1f8a4c; --err: #c62828;
-    --track: #ececea;
+    --bg: #f5f5f7; --card: #ffffff; --text: #1d1d1f; --muted: #6e6e73;
+    --border: #e3e3e8; --accent: #5a4ae8; --accent-text: #fff; --ok: #1f8a4c; --err: #c62828;
+    --accent-grad: linear-gradient(135deg, #2f6fe0, #7045e6);
+    --glow: rgba(90, 74, 232, .18); --track: #ececf0;
   }
   @media (prefers-color-scheme: dark) {
     :root {
-      --bg: #151516; --card: #1f1f21; --text: #f2f2f2; --muted: #9a9aa0;
-      --border: #333336; --accent: #ff4d47; --ok: #4cc07c; --err: #ff6b6b; --track: #2c2c2f;
+      --bg: #141414; --card: #1f1f1f; --text: #f2f2f2; --muted: #9a9aa0;
+      --border: #313131; --accent: #a99bff; --ok: #4cc07c; --err: #ff6b6b; --track: #2a2a2a;
+      --glow: rgba(112, 69, 230, .35);
     }
   }
   * { box-sizing: border-box; }
@@ -33,11 +36,13 @@
     flex: 1; min-width: 0; padding: 12px 14px; font: inherit; color: var(--text);
     background: var(--bg); border: 1px solid var(--border); border-radius: 10px; outline: none;
   }
-  input[type=text]:focus, select:focus { border-color: var(--accent); }
+  input[type=text]:focus, select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--glow); }
+  input[type=checkbox] { accent-color: var(--accent); }
   button {
     padding: 12px 18px; font: inherit; font-weight: 600; border: 0; border-radius: 10px;
-    background: var(--accent); color: var(--accent-text); cursor: pointer; white-space: nowrap;
+    background: var(--accent-grad); color: var(--accent-text); cursor: pointer; white-space: nowrap;
   }
+  button:not(.ghost):not(:disabled):hover { box-shadow: 0 4px 14px var(--glow); }
   button.ghost { background: transparent; color: var(--text); border: 1px solid var(--border); font-weight: 500; }
   button.wide { width: 100%; margin-top: 10px; }
   button:disabled { opacity: .5; cursor: default; }
@@ -54,7 +59,7 @@
   .job .status { color: var(--muted); font-size: 13px; display: flex; justify-content: space-between; gap: 8px; margin-top: 6px; }
   .job .status a { color: var(--accent); cursor: pointer; text-decoration: none; }
   .bar { height: 6px; background: var(--track); border-radius: 3px; overflow: hidden; margin-top: 8px; }
-  .bar > div { height: 100%; background: var(--accent); width: 0; transition: width .3s; }
+  .bar > div { height: 100%; background: var(--accent-grad); width: 0; transition: width .3s; }
   .job.done .bar > div { background: var(--ok); }
   .job.error .bar > div { background: var(--err); width: 100% !important; }
   .job.error .status span:first-child { color: var(--err); }

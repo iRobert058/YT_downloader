@@ -1,10 +1,16 @@
 <p align="center">
-  <img src="assets/icon.png" width="128" alt="YT Downloader icon">
+  <img src="assets/icon.png" width="160" alt="YT Downloader icon">
 </p>
 
 <h1 align="center">YT Downloader</h1>
 
 <p align="center">A small macOS app for downloading YouTube videos and playlists as MP4 or MP3.</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/macOS-app-2f6fe0?logo=apple&logoColor=white" alt="macOS app">
+  <img src="https://img.shields.io/badge/Python-3.10%2B-5a4ae8?logo=python&logoColor=white" alt="Python 3.10+">
+  <img src="https://img.shields.io/badge/license-MIT-7045e6" alt="MIT license">
+</p>
 
 > [!NOTE]
 > **This project is vibecoded.** It was built by prompting an AI coding assistant, not written by hand.
@@ -18,6 +24,7 @@
 - Whole playlists at once
 - Several downloads at the same time, with live progress
 - Runs as a native macOS app window, and ffmpeg is bundled
+- Follows your system's light or dark mode
 
 ## Requirements
 
@@ -27,7 +34,7 @@
 ## Install
 
 ```bash
-git clone https://github.com/<iRobert058>/YT_downloader.git
+git clone https://github.com/iRobert058/YT_downloader.git
 cd YT_downloader
 ./build_app.sh
 ```
