@@ -179,7 +179,9 @@ def run_download(job_id, url, preset, playlist, folder):
 @app.route("/")
 def index():
     presets = [(k, v[0]) for k, v in PRESETS.items() if k != "mp3"]  # MP3 has its own button
-    return render_template("index.html", presets=presets, folder=str(state["folder"]))
+    return render_template(
+        "index.html", presets=presets, folder=str(state["folder"]), home=str(Path.home())
+    )
 
 
 @app.post("/api/info")
@@ -212,11 +214,15 @@ def download():
     if not url or preset not in PRESETS:
         return jsonify(error="Invalid request."), 400
     job_id = uuid.uuid4().hex[:8]
+    folder = state["folder"]  # fixed per job, so changing the folder later doesn't move it
     with jobs_lock:
-        jobs[job_id] = {"state": "starting", "percent": 0, "title": body.get("title") or url}
+        jobs[job_id] = {
+            "state": "starting", "percent": 0, "title": body.get("title") or url,
+            "folder": str(folder),
+        }
     threading.Thread(
         target=run_download,
-        args=(job_id, url, preset, bool(body.get("playlist")), state["folder"]),
+        args=(job_id, url, preset, bool(body.get("playlist")), folder),
         daemon=True,
     ).start()
     return jsonify(id=job_id)

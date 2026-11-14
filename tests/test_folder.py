@@ -98,3 +98,16 @@ def test_save_failure_keeps_old_folder(client, monkeypatch, tmp_path):
     assert res.status_code == 500
     assert "disk full" in res.json["error"]
     assert ytapp.state["folder"] == before
+
+
+def test_job_records_its_folder(client, monkeypatch, tmp_path):
+    class FakeThread:
+        def __init__(self, target, args, daemon):
+            pass
+        def start(self):
+            pass
+
+    monkeypatch.setattr(ytapp.threading, "Thread", FakeThread)
+    monkeypatch.setitem(ytapp.state, "folder", tmp_path)
+    job_id = client.post("/api/download", json={"url": "https://example.com/v"}).json["id"]
+    assert client.get("/api/jobs").json[job_id]["folder"] == str(tmp_path)

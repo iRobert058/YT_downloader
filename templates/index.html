@@ -58,6 +58,7 @@
   .jobs-head .actions { display: flex; gap: 8px; }
   button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   .job .name { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .job .path { color: var(--muted); font-size: 12px; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; direction: rtl; text-align: left; }
   .job .status { color: var(--muted); font-size: 13px; display: flex; justify-content: space-between; gap: 8px; margin-top: 6px; }
   .job .status a { color: var(--accent); cursor: pointer; text-decoration: none; }
   .bar { height: 6px; background: var(--track); border-radius: 3px; overflow: hidden; margin-top: 8px; }
@@ -117,6 +118,19 @@
 <script>
 const $ = id => document.getElementById(id);
 let current = null;
+const HOME = {{ home|tojson }};
+
+// "/Users/me/Downloads/x.mp4" -> "~/Downloads/x.mp4"
+function shortPath(p) {
+  if (!p) return "";
+  return p === HOME || p.startsWith(HOME + "/") ? "~" + p.slice(HOME.length) : p;
+}
+
+function showFolder(folder) {
+  $("folder").textContent = shortPath(folder);
+  $("folder").title = folder;
+}
+showFolder($("folder").textContent);
 
 async function api(path, body) {
   const res = await fetch(path, {
@@ -187,7 +201,7 @@ $("changeFolder").addEventListener("click", async () => {
   $("changeFolder").disabled = true;
   try {
     const {folder} = await api("/api/folder", {});
-    $("folder").textContent = folder;
+    showFolder(folder);
   } catch (err) {
     showError(err.message);
   } finally {
@@ -214,8 +228,14 @@ function render(jobs) {
     const j = jobs[id];
     const el = document.createElement("div");
     el.className = `card job ${j.state}`;
-    el.innerHTML = `<div class="name"></div><div class="bar"><div></div></div><div class="status"><span></span></div>`;
+    el.innerHTML = `<div class="name"></div><div class="path"></div><div class="bar"><div></div></div><div class="status"><span></span></div>`;
     el.querySelector(".name").textContent = j.title;
+    // A finished single video shows its file; playlists and running jobs show the folder.
+    const where = j.state === "done" && j.file && !j.items ? j.file : j.folder;
+    const path = el.querySelector(".path");
+    path.innerHTML = "<bdi></bdi>";  // keeps the path's own direction inside the rtl ellipsis
+    path.firstChild.textContent = (where === j.file ? "Saved as " : "Saving to ") + shortPath(where);
+    path.title = where;
     el.querySelector(".bar > div").style.width = (j.percent || 0) + "%";
     el.querySelector(".status span").textContent = statusText(j);
     if (j.state === "done") {
