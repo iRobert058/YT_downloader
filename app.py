@@ -4,6 +4,7 @@ Run `python app.py` to open the app window (or `python app.py --browser`
 to use your web browser instead). Build a macOS .app with ./build_app.sh.
 """
 
+import json
 import os
 import socket
 import subprocess
@@ -28,6 +29,11 @@ HOST = "127.0.0.1"
 BASE_DIR = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
 DOWNLOAD_DIR = Path.home() / "Downloads" / "YT Downloader"  # default save folder
 FFMPEG = imageio_ffmpeg.get_ffmpeg_exe()
+# Remembers the chosen save folder between launches (outside the .app, so rebuilds keep it).
+if sys.platform == "darwin":
+    SETTINGS_FILE = Path.home() / "Library" / "Application Support" / "YT Downloader" / "settings.json"
+else:
+    SETTINGS_FILE = Path.home() / ".config" / "yt-downloader" / "settings.json"
 
 # Prefer H.264 + AAC so MP4s play in QuickTime/Photos/iMovie (AV1/VP9 + Opus often don't).
 COMPAT = ["vcodec:h264", "res", "acodec:m4a"]
@@ -82,6 +88,25 @@ state = {"folder": DOWNLOAD_DIR, "window": None}  # current save folder; app win
 def update_job(job_id, **fields):
     with jobs_lock:
         jobs[job_id].update(fields)
+
+
+def load_folder():
+    """The saved save folder, or the default if none is saved or it's gone (e.g. drive unplugged)."""
+    if not SETTINGS_FILE.exists():
+        return DOWNLOAD_DIR
+    try:
+        saved = json.loads(SETTINGS_FILE.read_text()).get("folder")
+    except (OSError, ValueError, AttributeError) as e:
+        print(f"Ignoring unreadable settings file {SETTINGS_FILE}: {e}", file=sys.stderr)
+        return DOWNLOAD_DIR
+    if saved and Path(saved).is_dir():
+        return Path(saved)
+    return DOWNLOAD_DIR
+
+
+def save_folder(folder):
+    SETTINGS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    SETTINGS_FILE.write_text(json.dumps({"folder": str(folder)}, indent=2))
 
 
 def pick_folder(start):
@@ -215,6 +240,10 @@ def choose_folder():
     folder = Path(chosen)
     if not folder.is_dir() or not os.access(folder, os.W_OK):
         return jsonify(error=f"Can't save to {folder}. Pick a folder you can write to."), 400
+    try:
+        save_folder(folder)
+    except OSError as e:
+        return jsonify(error=f"Couldn't remember this folder: {e}"), 500
     state["folder"] = folder
     return jsonify(folder=str(folder))
 
@@ -242,6 +271,7 @@ def free_port():
 
 def main():
     DOWNLOAD_DIR.mkdir(parents=True, exist_ok=True)
+    state["folder"] = load_folder()
     port = free_port()
     url = f"http://{HOST}:{port}"
 
