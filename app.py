@@ -26,7 +26,7 @@ if sys.stderr is None:
 HOST = "127.0.0.1"
 # Bundled by PyInstaller, resources live in sys._MEIPASS instead of next to this file.
 BASE_DIR = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
-DOWNLOAD_DIR = Path.home() / "Downloads" / "YT Downloader"
+DOWNLOAD_DIR = Path.home() / "Downloads" / "YT Downloader"  # default save folder
 FFMPEG = imageio_ffmpeg.get_ffmpeg_exe()
 
 # Prefer H.264 + AAC so MP4s play in QuickTime/Photos/iMovie (AV1/VP9 + Opus often don't).
@@ -76,6 +76,7 @@ PRESETS = {
 app = Flask(__name__, template_folder=str(BASE_DIR / "templates"))
 jobs = {}  # job_id -> status dict
 jobs_lock = threading.Lock()
+state = {"folder": DOWNLOAD_DIR, "window": None}  # current save folder; app window if any
 
 
 def update_job(job_id, **fields):
@@ -83,7 +84,30 @@ def update_job(job_id, **fields):
         jobs[job_id].update(fields)
 
 
-def run_download(job_id, url, preset, playlist):
+def pick_folder(start):
+    """Open the native folder picker. Returns the chosen path, or None if cancelled."""
+    if state["window"] is not None:
+        import webview
+        result = state["window"].create_file_dialog(webview.FileDialog.FOLDER, directory=str(start))
+        return result[0] if result else None
+    if sys.platform == "darwin":  # --browser mode: no app window, ask Finder via AppleScript
+        script = [
+            "on run argv",
+            'POSIX path of (choose folder with prompt "Choose where to save downloads"'
+            " default location (POSIX file (item 1 of argv)))",
+            "end run",
+        ]
+        args = ["osascript"] + [a for line in script for a in ("-e", line)] + [str(start)]
+        res = subprocess.run(args, capture_output=True, text=True)
+        if res.returncode == 0:
+            return res.stdout.strip()
+        if "-128" in res.stderr:  # user clicked Cancel
+            return None
+        raise RuntimeError(res.stderr.strip() or "Could not open the folder picker.")
+    raise RuntimeError("Choosing a folder isn't supported here.")
+
+
+def run_download(job_id, url, preset, playlist, folder):
     def on_progress(d):
         if d["status"] == "downloading":
             total = d.get("total_bytes") or d.get("total_bytes_estimate") or 0
@@ -110,7 +134,7 @@ def run_download(job_id, url, preset, playlist):
 
     opts = {
         **PRESETS[preset][1],
-        "outtmpl": str(DOWNLOAD_DIR / "%(title)s [%(id)s].%(ext)s"),
+        "outtmpl": str(folder / "%(title)s [%(id)s].%(ext)s"),
         "ffmpeg_location": FFMPEG,
         "noplaylist": not playlist,
         "progress_hooks": [on_progress],
@@ -130,7 +154,7 @@ def run_download(job_id, url, preset, playlist):
 @app.route("/")
 def index():
     presets = [(k, v[0]) for k, v in PRESETS.items() if k != "mp3"]  # MP3 has its own button
-    return render_template("index.html", presets=presets, folder=str(DOWNLOAD_DIR))
+    return render_template("index.html", presets=presets, folder=str(state["folder"]))
 
 
 @app.post("/api/info")
@@ -167,7 +191,7 @@ def download():
         jobs[job_id] = {"state": "starting", "percent": 0, "title": body.get("title") or url}
     threading.Thread(
         target=run_download,
-        args=(job_id, url, preset, bool(body.get("playlist"))),
+        args=(job_id, url, preset, bool(body.get("playlist")), state["folder"]),
         daemon=True,
     ).start()
     return jsonify(id=job_id)
@@ -179,11 +203,27 @@ def list_jobs():
         return jsonify({k: dict(v) for k, v in jobs.items()})
 
 
+@app.post("/api/folder")
+def choose_folder():
+    """Let the user pick a new save folder. New downloads go there; running ones don't move."""
+    try:
+        chosen = pick_folder(state["folder"])
+    except RuntimeError as e:
+        return jsonify(error=str(e)), 500
+    if chosen is None:
+        return jsonify(folder=str(state["folder"]))
+    folder = Path(chosen)
+    if not folder.is_dir() or not os.access(folder, os.W_OK):
+        return jsonify(error=f"Can't save to {folder}. Pick a folder you can write to."), 400
+    state["folder"] = folder
+    return jsonify(folder=str(folder))
+
+
 @app.post("/api/reveal")
 def reveal():
     """Open the downloads folder (or highlight a file) in Finder/Explorer."""
     path = (request.json or {}).get("file")
-    target = Path(path) if path and Path(path).exists() else DOWNLOAD_DIR
+    target = Path(path) if path and Path(path).exists() else state["folder"]
     if sys.platform == "darwin":
         cmd = ["open", "-R", str(target)] if target.is_file() else ["open", str(target)]
     elif sys.platform == "win32":
@@ -216,7 +256,7 @@ def main():
     threading.Thread(
         target=app.run, kwargs={"host": HOST, "port": port, "debug": False}, daemon=True
     ).start()
-    webview.create_window("YT Downloader", url, width=760, height=820, min_size=(420, 500))
+    state["window"] = webview.create_window("YT Downloader", url, width=760, height=820, min_size=(420, 500))
     webview.start()  # blocks until the window is closed; the server thread dies with us
 
 

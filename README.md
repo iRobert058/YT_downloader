@@ -73,7 +73,7 @@ When downloads start failing, run `./build_app.sh` again to rebuild with the lat
 
 1. Paste a YouTube link and click **Look up**.
 2. Pick a video quality and click **Download video**, or click **Download MP3** for audio only.
-3. Files are saved to `~/Downloads/YT Downloader`.
+3. Files are saved to `~/Downloads/YT Downloader` by default. Click **Change folder…** to pick another folder for new downloads.
 
 ## How it works
 

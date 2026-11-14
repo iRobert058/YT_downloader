@@ -55,6 +55,8 @@
   .error { color: var(--err); font-size: 14px; margin-top: 10px; display: none; }
   .jobs-head { display: flex; justify-content: space-between; align-items: center; margin: 28px 0 10px; }
   .jobs-head h2 { font-size: 15px; margin: 0; }
+  .jobs-head .actions { display: flex; gap: 8px; }
+  button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   .job .name { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .job .status { color: var(--muted); font-size: 13px; display: flex; justify-content: space-between; gap: 8px; margin-top: 6px; }
   .job .status a { color: var(--accent); cursor: pointer; text-decoration: none; }
@@ -74,7 +76,7 @@
 <body>
 <main>
   <h1>YouTube Downloader</h1>
-  <p class="sub">Paste a link, choose a format, download. Files go to <code>{{ folder }}</code>.</p>
+  <p class="sub">Paste a link, choose a format, download. Files go to <code id="folder" aria-live="polite">{{ folder }}</code>.</p>
 
   <div class="card">
     <form class="row" id="lookup">
@@ -104,7 +106,10 @@
 
   <div class="jobs-head">
     <h2>Downloads</h2>
-    <button class="ghost" id="openFolder">Open folder</button>
+    <div class="actions">
+      <button class="ghost" id="changeFolder">Change folder…</button>
+      <button class="ghost" id="openFolder">Open folder</button>
+    </div>
   </div>
   <div id="jobs"><div class="empty">Nothing downloaded yet.</div></div>
 </main>
@@ -176,6 +181,19 @@ $("dlBtn").addEventListener("click", () => startDownload($("preset").value));
 $("mp3Btn").addEventListener("click", () => startDownload("mp3"));
 
 $("openFolder").addEventListener("click", () => api("/api/reveal", {}));
+
+$("changeFolder").addEventListener("click", async () => {
+  showError("");
+  $("changeFolder").disabled = true;
+  try {
+    const {folder} = await api("/api/folder", {});
+    $("folder").textContent = folder;
+  } catch (err) {
+    showError(err.message);
+  } finally {
+    $("changeFolder").disabled = false;
+  }
+});
 
 function statusText(j) {
   const item = j.items ? ` (${j.item}/${j.items})` : "";
